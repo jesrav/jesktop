@@ -1,0 +1,33 @@
+default_language_version:
+  python: python3.13
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.9.2
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      # Equivalent to black formatter
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      # Don't add large files to git
+      - id: check-added-large-files
+        args: ["--maxkb=800"] # some local data files are slightly larger than 500kb
+      # Don't commit directly to main
+      - id: no-commit-to-branch
+      # Don't commit unresolved merge conflicts
+      - id: check-merge-conflict
+      # Don't commit with `breakpoint()` still present
+      - id: debug-statements
+      # Check that various config files are well-formatted
+      - id: check-toml
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.5.22
+    hooks:
+      # Ensure uv.lock is up-to-date
+      - id: uv-lock

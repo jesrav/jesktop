@@ -1,0 +1,78 @@
+[project]
+name = "jesktop"
+version = "0.1.0"
+description = "Personalized RAG chatbot for Jes"
+readme = "README.md"
+requires-python = ">=3.12"
+
+dependencies = [
+    "databricks-vectorsearch>=0.45",
+    "fastapi[standard]>=0.115.8",
+    "instructor[anthropic]>=1.7.2",
+    "itsdangerous>=2.2.0",
+    "jinja2>=3.1.5",
+    "loguru>=0.7.3",
+    "numpy>=2.2.2",
+    "pydantic>=2.10.6",
+    "pydantic-settings>=2.7.1",
+    "python-dotenv>=1.0.1",
+    "python-multipart>=0.0.20",
+    "tiktoken>=0.6.0",
+    "uvicorn>=0.34.0",
+    "voyageai>=0.2.0",
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.13.0",
+    "pre-commit>=4.0.1",
+    "pytest>=8.3.4",
+    "pytest-cov>=6.0.0",
+    "ipython>=8.32.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+# See rules: https://docs.astral.sh/ruff/rules/
+select = [
+    "ANN001",  # flake8-annotations - Missing type annotation for function argument
+    "ANN201",  # flake8-annotations - Missing return type annotation for public function
+    "ARG001",  # unused-function-argument - Checks for the presence of unused arguments in function definitions
+    "B",       # flake8-bugbear
+    "C90",     # mccabe complexity
+    "E",       # pycodestyle
+    "F",       # pyflakes
+    "I",       # isort
+    "PD",      # pandas-vet
+    "RUF100",  # unused noqa directive
+    "PLR0917", # pylint - too-many-positional-arguments
+]
+ignore = ["E501"]
+# More settings: https://beta.ruff.rs/docs/settings/
+# Allow autofix for all enabled rules (when `--fix`) is provided.
+fixable = ["ALL"]
+unfixable = []
+
+# allow preview rules, but only if explicitly selected
+preview = true
+explicit-preview-rules = true
+
+[tool.ruff.lint.pylint]
+# e.g. fn(a, b, c, d) is not allowed.
+# instead fn(a, b, c, *, d) should be used
+max-positional-args = 3
+
+[tool.ruff.lint.extend-per-file-ignores]
+# ignore too-many-positional-arguments in tests
+"tests/*" = ["PLR0917"]
+
+[tool.pyright]
+typeCheckingMode = "standard"
+include = ["notes_chat"]

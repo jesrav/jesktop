@@ -1,0 +1,17 @@
+.venv
+venv
+frontend/node_modules
+.env
+.azure/
+__pycache__/
+
+# IDE stuff
+.idea
+
+infrastructure/app_service.parameters.json
+/.envrc
+/data
+!data/.gitkeep
+.DS_Store
+*.egg-info
+/static
