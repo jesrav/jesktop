@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 def login_user(
     client: TestClient, username: str = "admin", password: str = "password"
 ) -> TestClient:
-    """Helper function to login a user and return a client with session cookies."""
+    """Helper function to log in a user and return a client with session cookies."""
     response = client.post(
         "/login", data={"username": username, "password": password}, follow_redirects=True
     )

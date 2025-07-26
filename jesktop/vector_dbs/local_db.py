@@ -1,6 +1,4 @@
 import json
-import os
-import pickle
 from collections import deque
 from pathlib import Path
 from typing import Dict, List
@@ -15,24 +13,61 @@ from jesktop.vector_dbs.base import VectorDB
 class LocalVectorDB(VectorDB):
     """Local vector database that stores embeddings in a JSON file."""
 
-    def __init__(
-        self,
+    def __init__(self, filepath: str | Path | None = None) -> None:
+        """Initialize LocalVectorDB.
+
+        Args:
+            filepath: Path to vector database file. If provided and exists, will auto-load.
+                     If provided and doesn't exist, will save to this path when save() is called.
+                     If not provided, creates empty database in memory only.
+        """
+        self._filepath = str(filepath) if filepath else None
+
+        if self._filepath and Path(self._filepath).exists():
+            with open(self._filepath, "r") as f:
+                data = json.load(f)
+            self._notes = {
+                note_id: Note(**note_data) for note_id, note_data in data["notes"].items()
+            }
+            self._embedded_chunks = {
+                chunk_id: EmbeddedChunk(**chunk_data)
+                for chunk_id, chunk_data in data["chunks"].items()
+            }
+            self._relationship_graph = RelationshipGraph()
+            if "relationships" in data:
+                self._relationship_graph = RelationshipGraph(**data["relationships"])
+        else:
+            self._notes = {}
+            self._embedded_chunks = {}
+            self._relationship_graph = RelationshipGraph()
+
+    @classmethod
+    def from_data(
+        cls,
         notes: Dict[str, Note] | None = None,
         embedded_chunks: Dict[int, EmbeddedChunk] | None = None,
         relationship_graph: RelationshipGraph | None = None,
-    ) -> None:
-        self._notes = notes if notes is not None else {}
-        self._embedded_chunks = embedded_chunks if embedded_chunks is not None else {}
-        self._relationship_graph = (
-            relationship_graph if relationship_graph is not None else RelationshipGraph()
-        )
+    ) -> "LocalVectorDB":
+        """Create LocalVectorDB from provided data (useful for testing).
+
+        Args:
+            notes: Notes dictionary
+            embedded_chunks: Embedded chunks dictionary
+            relationship_graph: Relationship graph
+
+        Returns:
+            LocalVectorDB instance with provided data
+        """
+        instance = cls(filepath=None)
+        instance._notes = notes or {}
+        instance._embedded_chunks = embedded_chunks or {}
+        instance._relationship_graph = relationship_graph or RelationshipGraph()
+        return instance
 
     def get_closest_chunks(self, input_vector: np.ndarray, closest: int) -> List[Chunk]:
         """Get the closest chunks to an input vector."""
-        # Convert input vector to numpy array
         input_vector = np.array(input_vector)
 
-        # Calculate cosine similarity with all vectors
         similarities = []
         for chunk in self._embedded_chunks.values():
             chunk_vector = np.array(chunk.vector)
@@ -41,7 +76,6 @@ class LocalVectorDB(VectorDB):
             )
             similarities.append((similarity, chunk))
 
-        # Sort by similarity and return top k chunks
         similarities.sort(key=lambda x: x[0], reverse=True)
         return [
             Chunk(
@@ -187,8 +221,19 @@ class LocalVectorDB(VectorDB):
                 return note
         return None
 
-    def save(self, filepath: str) -> None:
-        """Save the vector database to a JSON file."""
+    def save(self, filepath: str | None = None) -> None:
+        """Save the vector database to a JSON file.
+
+        Args:
+            filepath: Path to save to. If not provided, uses the filepath from initialization.
+        """
+        save_path = filepath or self._filepath
+        if not save_path:
+            raise ValueError(
+                "No filepath provided and no default filepath set during initialization"
+            )
+
+        save_path = str(save_path)
         data = {
             "notes": {note_id: note.model_dump() for note_id, note in self._notes.items()},
             "chunks": {
@@ -196,34 +241,23 @@ class LocalVectorDB(VectorDB):
             },
             "relationships": self._relationship_graph.model_dump(),
         }
-        with open(filepath, "w") as f:
+        with open(save_path, "w") as f:
             json.dump(data, f)
 
-    @classmethod
-    def load(cls, filepath: str) -> "LocalVectorDB":
-        """Load a vector database from a JSON file."""
-        with open(filepath, "r") as f:
-            data = json.load(f)
+    def add_note(self, note: Note) -> None:
+        """Add a note to the database."""
+        self._notes[note.id] = note
 
-        notes = {note_id: Note(**note_data) for note_id, note_data in data["notes"].items()}
-        chunks = {
-            chunk_id: EmbeddedChunk(**chunk_data) for chunk_id, chunk_data in data["chunks"].items()
-        }
+    def add_chunk(self, chunk: EmbeddedChunk) -> None:
+        """Add an embedded chunk to the database."""
+        self._embedded_chunks[chunk.id] = chunk
 
-        # Load relationships if available (backward compatibility)
-        relationship_graph = RelationshipGraph()
-        if "relationships" in data:
-            relationship_graph = RelationshipGraph(**data["relationships"])
+    def update_relationship_graph(self, relationship_graph: RelationshipGraph) -> None:
+        """Update the relationship graph."""
+        self._relationship_graph = relationship_graph
 
-        return cls(notes=notes, embedded_chunks=chunks, relationship_graph=relationship_graph)
-
-    @classmethod
-    def load_pickle(cls, path: str) -> "LocalVectorDB":
-        """Load the database from disk."""
-        db = cls()
-        if os.path.exists(path):
-            with open(path, "rb") as f:
-                data = pickle.load(f)
-                db._notes = data["notes"]
-                db._embedded_chunks = {chunk.id: chunk for chunk in data["chunks"]}
-        return db
+    def clear(self) -> None:
+        """Clear all data from the database."""
+        self._notes.clear()
+        self._embedded_chunks.clear()
+        self._relationship_graph = RelationshipGraph()

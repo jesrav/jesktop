@@ -2,7 +2,7 @@
 
 import pytest
 
-from scripts.ingest import extract_image_paths
+from jesktop.ingestion.content_extractor import ContentExtractor
 
 
 @pytest.mark.parametrize(
@@ -61,5 +61,6 @@ from scripts.ingest import extract_image_paths
     ],
 )
 def test_extract_image_paths(description, content, expected_paths):  # noqa
-    paths = extract_image_paths(content)
+    extractor = ContentExtractor()
+    paths = extractor.extract_image_paths(content)
     assert paths == expected_paths, f"Failed test case: {description}"

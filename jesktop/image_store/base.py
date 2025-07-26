@@ -1,4 +1,4 @@
-from typing import Optional, Protocol
+from typing import List, Optional, Protocol
 
 from jesktop.domain.image import Image
 
@@ -14,15 +14,14 @@ class ImageStore(Protocol):
         """Get image ID by note ID and relative path."""
         ...
 
-    def save_image(self, image: Image) -> None:
-        """Save an image to the store."""
+    def get_image_ids(self) -> List[str]:
+        """Get all image IDs stored in the image store."""
         ...
 
-    def save(self, filepath: str) -> None:
+    def add_image(self, image: Image) -> None:
+        """Add an image to the store."""
+        ...
+
+    def save(self, filepath: str | None = None) -> None:
         """Save the image store to disk."""
-        ...
-
-    @classmethod
-    def load(cls, filepath: str) -> "ImageStore":
-        """Load an image store from disk."""
         ...

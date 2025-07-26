@@ -1,4 +1,4 @@
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 from jesktop.domain.image import Image
 from jesktop.image_store.base import ImageStore
@@ -23,9 +23,14 @@ class FakeImageStore(ImageStore):
                 return image.id
         return None
 
-    def save_image(self, image: Image) -> None:
-        """Save an image to the store."""
+    def get_image_ids(self) -> List[str]:
+        """Get all image IDs stored in the image store."""
+        return list(self._images.keys())
+
+    def add_image(self, image: Image) -> str:
+        """Add an image to the store and return its ID."""
         self._images[image.id] = image
+        return image.id
 
     def save(self, filepath: str) -> None:
         """Save the image store to disk."""

@@ -6,3 +6,6 @@
 
 # Small stuff
 - [ ] Make sure the frontend does not return internal errors to the user
+
+# Bugs
+- [ ] The inbound links from other notes does not seem to be caught correctly

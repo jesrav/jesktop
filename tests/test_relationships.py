@@ -5,14 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from scripts.ingest import (
-    build_note_mapping,
-    calculate_relationship_strength,
-    extract_embedded_content,
-    extract_relationship_context,
-    extract_wikilinks,
-    resolve_note_references,
-)
+from jesktop.ingestion.content_extractor import ContentExtractor
+from jesktop.ingestion.relationship_extraction import ReferenceResolver, analyzer
 
 
 def test_link_extraction() -> None:
@@ -29,8 +23,9 @@ def test_link_extraction() -> None:
     Another reference to [[Pensieve|custom text]].
     """
 
-    wikilinks = extract_wikilinks(content)
-    embeds = extract_embedded_content(content)
+    extractor = ContentExtractor()
+    wikilinks = extractor.extract_wikilinks(content)
+    embeds = extractor.extract_embedded_content(content)
 
     assert "Pensieve" in wikilinks
     assert "Another Note" in wikilinks
@@ -47,7 +42,8 @@ def test_reference_resolution() -> None:
     }
 
     links = ["Pensieve", "Another Note", "Test File", "Nonexistent"]
-    resolved = resolve_note_references(links, note_mapping)
+    resolver = ReferenceResolver(note_mapping)
+    resolved = resolver.resolve_references(links)
 
     assert "note_id_1" in resolved
     assert "note_id_2" in resolved
@@ -67,7 +63,8 @@ def test_image_reference_resolution() -> None:
 
     # Test exact image filename match
     links = ["Pasted image 20250628112432.png", "diagram.png"]
-    resolved = resolve_note_references(links, note_mapping)
+    resolver = ReferenceResolver(note_mapping)
+    resolved = resolver.resolve_references(links)
 
     assert "image:Z - Attachements/Pasted image 20250628112432.png" in resolved
     assert "image:images/diagram.png" in resolved
@@ -75,7 +72,8 @@ def test_image_reference_resolution() -> None:
 
     # Test image stem match
     links = ["Pasted image 20250628112432", "diagram"]
-    resolved = resolve_note_references(links, note_mapping)
+    resolver = ReferenceResolver(note_mapping)
+    resolved = resolver.resolve_references(links)
 
     assert "image:Z - Attachements/Pasted image 20250628112432.png" in resolved
     assert "image:images/diagram.png" in resolved
@@ -94,7 +92,8 @@ def test_excalidraw_reference_resolution() -> None:
 
     # Test exact excalidraw filename match
     links = ["New Org 2024-12-14 19.15.37.excalidraw", "workflow.excalidraw"]
-    resolved = resolve_note_references(links, note_mapping)
+    resolver = ReferenceResolver(note_mapping)
+    resolved = resolver.resolve_references(links)
 
     assert "excalidraw:drawings/New Org 2024-12-14 19.15.37.excalidraw" in resolved
     assert "excalidraw:workflow.excalidraw" in resolved
@@ -102,7 +101,8 @@ def test_excalidraw_reference_resolution() -> None:
 
     # Test excalidraw stem match
     links = ["New Org 2024-12-14 19.15.37", "workflow"]
-    resolved = resolve_note_references(links, note_mapping)
+    resolver = ReferenceResolver(note_mapping)
+    resolved = resolver.resolve_references(links)
 
     assert "excalidraw:drawings/New Org 2024-12-14 19.15.37.excalidraw" in resolved
     assert "excalidraw:workflow.excalidraw" in resolved
@@ -119,7 +119,8 @@ def test_mixed_reference_resolution() -> None:
     }
 
     links = ["Project Notes", "image.png", "diagram.excalidraw", "Another Note"]
-    resolved = resolve_note_references(links, note_mapping)
+    resolver = ReferenceResolver(note_mapping)
+    resolved = resolver.resolve_references(links)
 
     assert "note_id_1" in resolved
     assert "image:assets/image.png" in resolved
@@ -140,7 +141,7 @@ def test_relationship_strength() -> None:
     Here we talk about Pensieve again and more about Pensieve.
     """
 
-    strength = calculate_relationship_strength(content, "Pensieve")
+    strength = analyzer.calculate_relationship_strength(content, "Pensieve")
 
     assert strength > 0.5  # Should be high due to header mention and frequency
 
@@ -153,7 +154,7 @@ def test_relationship_context() -> None:
     This is some text after the reference.
     """
 
-    context = extract_relationship_context(content, "Important Note")
+    context = analyzer.extract_relationship_context(content, "Important Note")
 
     assert "discuss this with" in context
     assert "for the project" in context
@@ -167,7 +168,15 @@ def test_note_mapping() -> None:
     ]
     folder = Path("data/notes")
 
-    mapping = build_note_mapping(files, folder)
+    # Use the orchestrator's mapping building logic
+    from jesktop.ingestion.orchestrator import IngestionOrchestrator
+
+    orchestrator = IngestionOrchestrator(
+        embedder=None,
+        vector_db=None,
+        image_store=None,
+    )
+    mapping = orchestrator._build_complete_mapping(files, folder)
 
     assert "test1" in mapping
     assert "test1.md" in mapping
@@ -191,7 +200,14 @@ def test_note_mapping_with_assets() -> None:
 
         # Test with markdown files only
         md_files = [temp_path / "note1.md"]
-        mapping = build_note_mapping(md_files, temp_path)
+        from jesktop.ingestion.orchestrator import IngestionOrchestrator
+
+        orchestrator = IngestionOrchestrator(
+            embedder=None,
+            vector_db=None,
+            image_store=None,
+        )
+        mapping = orchestrator._build_complete_mapping(md_files, temp_path)
 
         # Should contain markdown file mappings
         assert "note1" in mapping
@@ -230,8 +246,9 @@ def test_sample_notes() -> None:
         with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
 
-        wikilinks = extract_wikilinks(content)
-        embeds = extract_embedded_content(content)
+        extractor = ContentExtractor()
+        wikilinks = extractor.extract_wikilinks(content)
+        embeds = extractor.extract_embedded_content(content)
 
         # Just verify these don't raise exceptions
         assert isinstance(wikilinks, list)
@@ -248,13 +265,15 @@ def test_wikilink_patterns() -> None:
     ]
 
     for content, expected in test_cases:
-        wikilinks = extract_wikilinks(content)
+        extractor = ContentExtractor()
+        wikilinks = extractor.extract_wikilinks(content)
         for exp in expected:
             assert exp in wikilinks
 
     # Test nested case separately to understand actual behavior
     nested_content = "Nested [[Outer [[Inner]] Link]]"
-    nested_links = extract_wikilinks(nested_content)
+    extractor = ContentExtractor()
+    nested_links = extractor.extract_wikilinks(nested_content)
     # Just verify it extracts something without breaking
     assert len(nested_links) > 0
 
@@ -268,7 +287,8 @@ def test_embed_patterns() -> None:
     ]
 
     for content, expected in test_cases:
-        embeds = extract_embedded_content(content)
+        extractor = ContentExtractor()
+        embeds = extractor.extract_embedded_content(content)
         for exp in expected:
             assert exp in embeds
 
@@ -276,30 +296,32 @@ def test_embed_patterns() -> None:
 def test_relationship_strength_edge_cases() -> None:
     """Test relationship strength calculation edge cases."""
     # No mentions
-    strength = calculate_relationship_strength("No mentions here", "Missing")
+    strength = analyzer.calculate_relationship_strength("No mentions here", "Missing")
     assert strength == 0.0
 
     # Single mention
-    strength = calculate_relationship_strength("This mentions Target once", "Target")
+    strength = analyzer.calculate_relationship_strength("This mentions Target once", "Target")
     assert 0.0 < strength <= 0.3
 
     # Header mention
-    strength = calculate_relationship_strength("# Header with Target\nSome content", "Target")
+    strength = analyzer.calculate_relationship_strength(
+        "# Header with Target\nSome content", "Target"
+    )
     assert strength >= 0.2  # Should get header boost
 
 
 def test_relationship_context_edge_cases() -> None:
     """Test relationship context extraction edge cases."""
     # No mention
-    context = extract_relationship_context("No mention here", "Missing")
+    context = analyzer.extract_relationship_context("No mention here", "Missing")
     assert context == ""
 
     # Very short content
-    context = extract_relationship_context("Short Target text", "Target")
+    context = analyzer.extract_relationship_context("Short Target text", "Target")
     assert "Target" in context
 
     # Long content
     long_content = "A" * 200 + " Target " + "B" * 200
-    context = extract_relationship_context(long_content, "Target", context_chars=50)
+    context = analyzer.extract_relationship_context(long_content, "Target", context_chars=50)
     assert len(context) <= 150  # Should be trimmed
     assert "Target" in context

@@ -28,7 +28,7 @@ def test_find_note_by_title_exact_match() -> None:
         ),
     }
 
-    db = LocalVectorDB(notes=notes)
+    db = LocalVectorDB.from_data(notes=notes)
 
     # Test exact title match
     result = db.find_note_by_title("My Important Note")
@@ -55,7 +55,7 @@ def test_find_note_by_title_stem_match() -> None:
         ),
     }
 
-    db = LocalVectorDB(notes=notes)
+    db = LocalVectorDB.from_data(notes=notes)
 
     # Test stem match
     result = db.find_note_by_title("my_important_note")
@@ -77,7 +77,7 @@ def test_find_note_by_title_normalized_match() -> None:
         ),
     }
 
-    db = LocalVectorDB(notes=notes)
+    db = LocalVectorDB.from_data(notes=notes)
 
     # Test that "My Important Note" matches when searching for "My_Important_Note"
     result = db.find_note_by_title("My_Important_Note")
@@ -97,7 +97,7 @@ def test_find_note_by_title_normalized_match() -> None:
         ),
     }
 
-    db2 = LocalVectorDB(notes=notes2)
+    db2 = LocalVectorDB.from_data(notes=notes2)
     result = db2.find_note_by_title("My Important Note")
     assert result is not None
     assert result.id == "note2"
@@ -117,7 +117,7 @@ def test_find_note_by_title_substring_match() -> None:
         ),
     }
 
-    db = LocalVectorDB(notes=notes)
+    db = LocalVectorDB.from_data(notes=notes)
 
     # Test substring match
     result = db.find_note_by_title("Important Note")
@@ -139,7 +139,7 @@ def test_find_note_by_title_no_match() -> None:
         ),
     }
 
-    db = LocalVectorDB(notes=notes)
+    db = LocalVectorDB.from_data(notes=notes)
 
     # Test no match
     result = db.find_note_by_title("Nonexistent Note")
@@ -160,7 +160,7 @@ def test_find_note_by_title_empty_title() -> None:
         ),
     }
 
-    db = LocalVectorDB(notes=notes)
+    db = LocalVectorDB.from_data(notes=notes)
 
     # Should match by stem
     result = db.find_note_by_title("untitled_note")
@@ -196,7 +196,7 @@ def test_find_note_by_title_priority_order() -> None:
         ),
     }
 
-    db = LocalVectorDB(notes=notes)
+    db = LocalVectorDB.from_data(notes=notes)
 
     # Should prioritize exact title match over stem or substring
     result = db.find_note_by_title("Test Note")
@@ -227,7 +227,7 @@ def test_find_note_by_title_edge_cases() -> None:
         ),
     }
 
-    db = LocalVectorDB(notes=notes)
+    db = LocalVectorDB.from_data(notes=notes)
 
     # Test empty string search - should find the note with empty title
     result = db.find_note_by_title("")
@@ -268,7 +268,7 @@ def test_find_note_by_title_multiple_candidates() -> None:
         ),
     }
 
-    db = LocalVectorDB(notes=notes)
+    db = LocalVectorDB.from_data(notes=notes)
 
     # Should return first exact match found
     result = db.find_note_by_title("Project Notes")

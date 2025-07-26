@@ -2,7 +2,8 @@ from typing import List, Protocol
 
 import numpy as np
 
-from jesktop.domain.note import Chunk, Note
+from jesktop.domain.note import Chunk, EmbeddedChunk, Note
+from jesktop.domain.relationships import RelationshipGraph
 
 
 class VectorDB(Protocol):
@@ -34,11 +35,22 @@ class VectorDB(Protocol):
         """Find note by title, supporting fuzzy matching."""
         ...
 
-    def save(self, filepath: str) -> None:
+    def save(self, filepath: str | None = None) -> None:
         """Save the vector database to disk."""
         ...
 
-    @classmethod
-    def load(cls, filepath: str) -> "VectorDB":
-        """Load a vector database from disk."""
+    def add_note(self, note: Note) -> None:
+        """Add a note to the database."""
+        ...
+
+    def add_chunk(self, chunk: EmbeddedChunk) -> None:
+        """Add an embedded chunk to the database."""
+        ...
+
+    def update_relationship_graph(self, relationship_graph: RelationshipGraph) -> None:
+        """Update the relationship graph."""
+        ...
+
+    def clear(self) -> None:
+        """Clear all data from the database."""
         ...

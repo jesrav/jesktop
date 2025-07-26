@@ -1,4 +1,7 @@
 import base64
+import tempfile
+from pathlib import Path
+from typing import Generator
 
 import pytest
 from fastapi.testclient import TestClient
@@ -8,6 +11,7 @@ from jesktop.domain.image import Image
 from jesktop.domain.note import Note
 from jesktop.embedders.base import Embedder
 from jesktop.image_store.base import ImageStore
+from jesktop.ingestion.path_resolver import PathResolver
 from jesktop.llms.base import LLMChat
 from jesktop.vector_dbs.base import VectorDB
 from tests.fakes import FakeEmbedder, FakeImageStore, FakeLLMChat, FakeVectorDB
@@ -103,3 +107,42 @@ def test_client(
         image_store=fake_image_store,
     )
     return TestClient(app)
+
+
+@pytest.fixture
+def temp_notes_base() -> Generator[Path, None, None]:
+    """Create a temporary notes directory structure
+    used when testing the ingestion and parsing of notes.
+    """
+    with tempfile.TemporaryDirectory() as temp_dir:
+        yield Path(temp_dir)
+
+
+@pytest.fixture
+def notes_directory(temp_notes_base: Path) -> Path:
+    """Create notes subdirectory."""
+    notes_dir = temp_notes_base / "notes"
+    notes_dir.mkdir()
+    return notes_dir
+
+
+@pytest.fixture
+def articles_directory(notes_directory: Path) -> Path:
+    """Create articles subdirectory within notes."""
+    articles_dir = notes_directory / "3 - Learning" / "Articles"
+    articles_dir.mkdir(parents=True)
+    return articles_dir
+
+
+@pytest.fixture
+def attachments_directory(notes_directory: Path) -> Path:
+    """Create attachments directory."""
+    attachments_dir = notes_directory / "Z - Attachements"
+    attachments_dir.mkdir()
+    return attachments_dir
+
+
+@pytest.fixture
+def path_resolver(notes_directory: Path) -> PathResolver:
+    """PathResolver initialised using the notes directory fixture."""
+    return PathResolver(base_path=notes_directory, attachment_folders=["Z - Attachements"])
