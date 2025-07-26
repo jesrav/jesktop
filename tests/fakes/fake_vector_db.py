@@ -3,8 +3,8 @@ from typing import Dict, List
 
 import numpy as np
 
+from jesktop.domain.note import Chunk, Note
 from jesktop.vector_dbs.base import VectorDB
-from jesktop.vector_dbs.schemas import Chunk, Note
 
 
 class FakeVectorDB(VectorDB):

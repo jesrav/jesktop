@@ -1,8 +1,8 @@
 from typing import List
 
+from jesktop.domain.note import Chunk
 from jesktop.embedders.base import Embedder
 from jesktop.vector_dbs.base import VectorDB
-from jesktop.vector_dbs.schemas import Chunk
 
 PROMPT_TEMPLATE = """Answer the question based on the context from your notes below.
 

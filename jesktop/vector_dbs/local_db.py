@@ -7,8 +7,9 @@ from typing import Dict, List
 
 import numpy as np
 
+from jesktop.domain.note import Chunk, EmbeddedChunk, Note
+from jesktop.domain.relationships import RelationshipGraph
 from jesktop.vector_dbs.base import VectorDB
-from jesktop.vector_dbs.schemas import Chunk, EmbeddedChunk, Note, RelationshipGraph
 
 
 class LocalVectorDB(VectorDB):

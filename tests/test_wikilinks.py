@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Test suite for wikilink functionality."""
 
+from jesktop.domain.note import Note
 from jesktop.vector_dbs.local_db import LocalVectorDB
-from jesktop.vector_dbs.schemas import Note
 
 
 def test_find_note_by_title_exact_match() -> None:

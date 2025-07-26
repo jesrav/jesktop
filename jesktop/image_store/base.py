@@ -1,6 +1,6 @@
 from typing import Optional, Protocol
 
-from jesktop.vector_dbs.schemas import Image
+from jesktop.domain.image import Image
 
 
 class ImageStore(Protocol):

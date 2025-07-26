@@ -1,8 +1,8 @@
 import json
 from typing import Dict, Optional
 
+from jesktop.domain.image import Image
 from jesktop.image_store.base import ImageStore
-from jesktop.vector_dbs.schemas import Image
 
 
 class LocalImageStore(ImageStore):

@@ -11,17 +11,13 @@ from urllib.parse import unquote
 import tiktoken
 
 from jesktop.config import settings
+from jesktop.domain.image import Image
+from jesktop.domain.note import EmbeddedChunk, Note
+from jesktop.domain.relationships import NoteRelationship, RelationshipGraph
 from jesktop.embedders.base import Embedder
 from jesktop.embedders.voyage_embedder import VoyageEmbedder
 from jesktop.image_store.local import LocalImageStore
 from jesktop.vector_dbs.local_db import LocalVectorDB
-from jesktop.vector_dbs.schemas import (
-    EmbeddedChunk,
-    Image,
-    Note,
-    NoteRelationship,
-    RelationshipGraph,
-)
 
 logger = logging.getLogger(__name__)
 

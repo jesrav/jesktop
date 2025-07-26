@@ -4,11 +4,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import create_app
+from jesktop.domain.image import Image
+from jesktop.domain.note import Note
 from jesktop.embedders.base import Embedder
 from jesktop.image_store.base import ImageStore
 from jesktop.llms.base import LLMChat
 from jesktop.vector_dbs.base import VectorDB
-from jesktop.vector_dbs.schemas import Image, Note
 from tests.fakes import FakeEmbedder, FakeImageStore, FakeLLMChat, FakeVectorDB
 
 

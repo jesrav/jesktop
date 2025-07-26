@@ -2,7 +2,7 @@ from typing import List, Protocol
 
 import numpy as np
 
-from jesktop.vector_dbs.schemas import Chunk, Note
+from jesktop.domain.note import Chunk, Note
 
 
 class VectorDB(Protocol):
