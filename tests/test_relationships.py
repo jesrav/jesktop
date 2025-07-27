@@ -176,7 +176,7 @@ def test_note_mapping() -> None:
         vector_db=None,
         image_store=None,
     )
-    mapping = orchestrator._build_complete_mapping(files, folder)
+    mapping = orchestrator._get_path_to_file_mapping(files, folder)
 
     assert "test1" in mapping
     assert "test1.md" in mapping
@@ -207,7 +207,7 @@ def test_note_mapping_with_assets() -> None:
             vector_db=None,
             image_store=None,
         )
-        mapping = orchestrator._build_complete_mapping(md_files, temp_path)
+        mapping = orchestrator._get_path_to_file_mapping(md_files, temp_path)
 
         # Should contain markdown file mappings
         assert "note1" in mapping

@@ -6,7 +6,7 @@ from typing import Generator
 import pytest
 from fastapi.testclient import TestClient
 
-from app import create_app
+from jesktop.api import create_app
 from jesktop.domain.image import Image
 from jesktop.domain.note import Note
 from jesktop.embedders.base import Embedder
@@ -25,14 +25,16 @@ def test_notes() -> dict[str, Note]:
             title="Test Note 1",
             content="Test content 1",
             path="/test/note1.md",
-            metadata={},
+            created=0.0,
+            modified=0.0,
         ),
         "note2": Note(
             id="note2",
             title="Test Note 2",
             content="Test content 2",
             path="/test/note2.md",
-            metadata={},
+            created=0.0,
+            modified=0.0,
         ),
     }
 

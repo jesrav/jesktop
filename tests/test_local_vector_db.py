@@ -20,7 +20,8 @@ def first_note() -> Note:
         title="Test Note",
         path="/path/to/test_note.md",
         content="This is test content",
-        metadata={"created": 1234567890, "modified": 1234567900},
+        created=1234567890,
+        modified=1234567900,
         outbound_links=["note_456"],
         inbound_links=[],
         embedded_content=[],
@@ -36,7 +37,8 @@ def second_note() -> Note:
         title="Second Note",
         path="/path/to/second_note.md",
         content="This is more test content. It references the [[First Note]].",
-        metadata={"created": 1234567800, "modified": 1234567850},
+        created=1234567800,
+        modified=1234567850,
         outbound_links=[],
         inbound_links=["note_123"],
         embedded_content=[],
@@ -48,7 +50,7 @@ def second_note() -> Note:
 def first_chunk() -> EmbeddedChunk:
     """Create a sample embedded chunk for testing."""
     return EmbeddedChunk(
-        id=1,
+        id="note_123_0",
         note_id="note_123",
         title="Test Note",
         text="This is test content",
@@ -62,7 +64,7 @@ def first_chunk() -> EmbeddedChunk:
 def second_chunk() -> EmbeddedChunk:
     """Create a second sample embedded chunk for testing."""
     return EmbeddedChunk(
-        id=2,
+        id="note_456_0",
         note_id="note_456",
         title="Second Note",
         text="This is more test content",
@@ -76,7 +78,7 @@ def second_chunk() -> EmbeddedChunk:
 def third_chunk() -> EmbeddedChunk:
     """Create a third sample embedded chunk for testing."""
     return EmbeddedChunk(
-        id=3,
+        id="note_456_1",
         note_id="note_456",
         title="Second Note",
         text=" It references the [[First Note]].",
@@ -105,7 +107,7 @@ def sample_relationship_graph() -> RelationshipGraph:
 def test_add_and_retrieve_note(first_note: Note) -> None:
     """Test adding and retrieving notes."""
     db = LocalVectorDB()
-    db.add_note(first_note)
+    db.update_note(first_note)
 
     retrieved_note = db.get_note("note_123")
     assert retrieved_note.id == "note_123", "Retrieved note ID should match"
@@ -124,7 +126,7 @@ def test_add_and_retrieve_chunk(first_chunk: EmbeddedChunk) -> None:
 
     assert len(closest_chunks) == 1, "Should return one closest chunk"
     chunk = closest_chunks[0]
-    assert chunk.id == 1, "Chunk ID should match"
+    assert chunk.id == "note_123_0", "Chunk ID should match"
     assert chunk.note_id == "note_123", "Chunk should belong to the correct note"
     assert chunk.text == "This is test content", "Chunk text should match original content"
 
@@ -132,8 +134,8 @@ def test_add_and_retrieve_chunk(first_chunk: EmbeddedChunk) -> None:
 def test_find_note_by_title(first_note: Note, second_note: Note) -> None:
     """Test finding notes by title."""
     db = LocalVectorDB()
-    db.add_note(first_note)
-    db.add_note(second_note)
+    db.update_note(first_note)
+    db.update_note(second_note)
 
     found_note = db.find_note_by_title("Test Note")
     assert found_note.id == "note_123", "Should find first note by exact title"
@@ -152,8 +154,8 @@ def test_find_note_by_title(first_note: Note, second_note: Note) -> None:
 def test_related_notes(first_note: Note, second_note: Note) -> None:
     """Test finding related notes through links."""
     db = LocalVectorDB()
-    db.add_note(first_note)
-    db.add_note(second_note)
+    db.update_note(first_note)
+    db.update_note(second_note)
 
     related = db.get_related_notes("note_123", max_depth=1)
     assert len(related) == 1, "Should find one related note from first note"
@@ -169,8 +171,8 @@ def test_note_clusters(
 ) -> None:
     """Test note clustering functionality."""
     db = LocalVectorDB()
-    db.add_note(first_note)
-    db.add_note(second_note)
+    db.update_note(first_note)
+    db.update_note(second_note)
     db.update_relationship_graph(sample_relationship_graph)
 
     cluster = db.get_note_cluster("note_123")
@@ -185,8 +187,8 @@ def test_note_clusters(
 def test_find_path_between_notes(first_note: Note, second_note: Note) -> None:
     """Test finding paths between notes."""
     db = LocalVectorDB()
-    db.add_note(first_note)
-    db.add_note(second_note)
+    db.update_note(first_note)
+    db.update_note(second_note)
 
     path = db.find_path_between_notes("note_123", "note_456")
     assert path == ["note_123", "note_456"], "Path should go from note_123 to note_456"
@@ -214,7 +216,7 @@ def test_clear_functionality(first_note: Note, first_chunk: EmbeddedChunk) -> No
     """Test clearing all data from the database."""
     db = LocalVectorDB()
 
-    db.add_note(first_note)
+    db.update_note(first_note)
     db.add_chunk(first_chunk)
 
     assert db.get_note("note_123") is not None, "Note should exist before clearing"
@@ -245,8 +247,8 @@ def test_save_and_load_functionality(
 
     try:
         db = LocalVectorDB(filepath=filepath)
-        db.add_note(first_note)
-        db.add_note(second_note)
+        db.update_note(first_note)
+        db.update_note(second_note)
         db.add_chunk(first_chunk)
         db.update_relationship_graph(sample_relationship_graph)
 
@@ -270,7 +272,7 @@ def test_save_and_load_functionality(
         query_vector = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
         chunks = new_db.get_closest_chunks(query_vector, closest=1)
         assert len(chunks) == 1, "Should load 1 chunk"
-        assert chunks[0].id == 1, "Loaded chunk should have correct ID"
+        assert chunks[0].id == "note_123_0", "Loaded chunk should have correct ID"
 
         context = new_db.get_relationship_context("note_456", "note_123")
         assert context == "[[First Note]]", "Relationship context should be loaded correctly"
@@ -322,19 +324,19 @@ def test_cosine_similarity_calculation(
     closest_chunks = db.get_closest_chunks(query_vector, closest=2)
 
     assert len(closest_chunks) == 2, "Should return both chunks"
-    assert closest_chunks[0].id == 1, (
+    assert closest_chunks[0].id == "note_123_0", (
         "First chunk should have highest similarity (identical vector)"
     )
-    assert closest_chunks[1].id == 2, "Second chunk should have lower similarity"
+    assert closest_chunks[1].id == "note_456_0", "Second chunk should have lower similarity"
 
     query_vector = np.array([0.5, 0.4, 0.3, 0.2, 0.1])
     closest_chunks = db.get_closest_chunks(query_vector, closest=2)
 
     assert len(closest_chunks) == 2, "Should return both chunks"
-    assert closest_chunks[0].id == 2, (
+    assert closest_chunks[0].id == "note_456_0", (
         "Second chunk should have highest similarity (identical vector)"
     )
-    assert closest_chunks[1].id == 1, "First chunk should have lower similarity"
+    assert closest_chunks[1].id == "note_123_0", "First chunk should have lower similarity"
 
 
 def test_multiple_chunks_from_same_note(
@@ -351,7 +353,7 @@ def test_multiple_chunks_from_same_note(
 
     assert len(closest_chunks) == 2, "Should return both chunks from same note"
     chunk_ids = {chunk.id for chunk in closest_chunks}
-    assert chunk_ids == {2, 3}, "Should return chunks with correct IDs"
+    assert chunk_ids == {"note_456_0", "note_456_1"}, "Should return chunks with correct IDs"
 
     for chunk in closest_chunks:
         assert chunk.note_id == "note_456", "Both chunks should belong to same note"

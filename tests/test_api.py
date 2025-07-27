@@ -22,7 +22,7 @@ def test_chat_endpoint_streams_response(test_client: TestClient) -> None:
     login_user(test_client)
     with test_client.stream("GET", "/chat?message=test") as response:
         assert response.status_code == 200
-        assert response.headers["content-type"] == "text/event-stream"
+        assert response.headers["content-type"].startswith("text/event-stream")
 
         # Collect all messages
         messages = []
