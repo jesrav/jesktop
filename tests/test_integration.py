@@ -115,7 +115,7 @@ def ingested_data(
     )
 
     # Run ingestion
-    orchestrator.ingest_folder(integration_test_data["notes_dir"])
+    orchestrator.ingest(integration_test_data["notes_dir"])
 
     return {
         "vector_db_path": vector_db_path,
@@ -256,7 +256,7 @@ def test_error_handling_in_integration_pipeline(
     )
 
     # Run ingestion on empty directory
-    orchestrator.ingest_folder(notes_dir)
+    orchestrator.ingest(notes_dir)
 
     # Should create empty but valid storage files
     assert vector_db_path.exists(), "Should create vector database file even for empty input"
@@ -276,3 +276,221 @@ def test_error_handling_in_integration_pipeline(
 
     assert "images" in image_data, "Image store should have images section"
     assert len(image_data["images"]) == 0, "Should have no images for empty directory"
+
+
+def test_incremental_ingestion_integration(
+    integration_test_data: dict[str, Path], tmp_path: Path, fake_embedder: Embedder
+) -> None:
+    """
+    Test incremental ingestion with real storage implementations.
+
+    This integration test verifies that:
+    1. Initial ingestion creates complete data structures
+    2. Incremental ingestion properly handles file modifications
+    3. Data persistence works correctly across ingestion cycles
+    4. File deletion is handled properly
+    """
+    notes_dir = integration_test_data["notes_dir"]
+    vector_db_path = tmp_path / "vector.json"
+    image_store_path = tmp_path / "images.json"
+
+    # Set up ingestion with real storage
+    embedder = fake_embedder
+    vector_db = LocalVectorDB(filepath=vector_db_path)
+    image_store = LocalImageStore(filepath=image_store_path)
+
+    orchestrator = IngestionOrchestrator(
+        embedder=embedder,
+        vector_db=vector_db,
+        image_store=image_store,
+    )
+
+    # Phase 1: Initial full ingestion
+    orchestrator.ingest(notes_dir)
+
+    # Verify initial state
+    initial_note_ids = vector_db.get_all_note_ids()
+    assert len(initial_note_ids) == 4, "Should have 4 notes after initial ingestion"
+
+    with open(vector_db_path, "r") as f:
+        initial_data = json.load(f)
+    initial_notes_count = len(initial_data["notes"])
+
+    # Phase 2: Modify an existing file
+    import time
+
+    time.sleep(0.1)  # Ensure timestamp difference
+
+    main_note_path = integration_test_data["main_note"]
+    original_content = main_note_path.read_text()
+    modified_content = (
+        original_content + "\n\n## New Section\n\nAdded content for incremental test."
+    )
+    main_note_path.write_text(modified_content)
+
+    # Run incremental ingestion
+    orchestrator.ingest(notes_dir)
+
+    # Verify modification was detected and processed
+    with open(vector_db_path, "r") as f:
+        modified_data = json.load(f)
+
+    assert len(modified_data["notes"]) == initial_notes_count, "Note count should remain same"
+    # Find the modified note and verify content changed
+    modified_notes = modified_data["notes"]
+    main_note_found = False
+    for note_data in modified_notes.values():
+        if "Main Test Document" in note_data["title"]:
+            assert "New Section" in note_data["content"], "Modified content should be persisted"
+            main_note_found = True
+            break
+    assert main_note_found, "Should find the main test document"
+
+    # Phase 3: Add a new file
+    time.sleep(0.1)
+    new_note_path = (
+        integration_test_data["notes_dir"] / "3 - Learning" / "Articles" / "New Document.md"
+    )
+    new_note_path.write_text("""# New Document
+
+This is a newly added document for incremental testing.
+
+It references [[Main Test Document]] and [[Reference Document]].
+""")
+
+    # Run incremental ingestion again
+    orchestrator.ingest(notes_dir)
+
+    # Verify new file was added
+    with open(vector_db_path, "r") as f:
+        new_file_data = json.load(f)
+
+    assert len(new_file_data["notes"]) == initial_notes_count + 1, "Should have one more note"
+
+    # Verify the new note exists
+    new_notes = new_file_data["notes"]
+    new_note_found = False
+    for note_data in new_notes.values():
+        if note_data["title"] == "New Document":
+            assert "incremental testing" in note_data["content"]
+            new_note_found = True
+            break
+    assert new_note_found, "Should find the new document"
+
+    # Phase 4: Delete a file
+    time.sleep(0.1)
+    related_doc_b_path = integration_test_data["related_doc_b"]
+    related_doc_b_path.unlink()
+
+    # Run incremental ingestion again
+    orchestrator.ingest(notes_dir)
+
+    # Verify file was deleted
+    with open(vector_db_path, "r") as f:
+        deletion_data = json.load(f)
+
+    assert len(deletion_data["notes"]) == initial_notes_count, (
+        "Should have original count after deletion"
+    )
+
+    # Verify Related Document B is gone
+    deletion_notes = deletion_data["notes"]
+    for note_data in deletion_notes.values():
+        assert note_data["title"] != "Related Document B", "Deleted document should not exist"
+
+    # Phase 5: Test persistence across database reload
+    # Create new instances to simulate application restart
+    new_vector_db = LocalVectorDB(filepath=vector_db_path)
+    new_image_store = LocalImageStore(filepath=image_store_path)
+
+    new_orchestrator = IngestionOrchestrator(
+        embedder=embedder,
+        vector_db=new_vector_db,
+        image_store=new_image_store,
+    )
+
+    # Should detect no changes needed (all files already processed)
+    new_orchestrator.ingest(notes_dir)
+
+    # Verify data consistency after reload
+    final_note_ids = new_vector_db.get_all_note_ids()
+    assert len(final_note_ids) == initial_notes_count, "Note count should be stable after reload"
+
+    # Verify we can still query the modified content
+    notes_by_id = new_vector_db.get_notes_by_ids(list(final_note_ids))
+    main_note = None
+    for note in notes_by_id.values():
+        if "Main Test Document" in note.title:
+            main_note = note
+            break
+
+    assert main_note is not None, "Should find main note after reload"
+    assert "New Section" in main_note.content, "Modified content should persist across reload"
+
+
+def test_incremental_ingestion_with_relationship_updates(
+    temp_notes_base: Path, fake_embedder: Embedder
+) -> None:
+    """
+    Test that incremental ingestion properly updates relationships.
+
+    This test specifically focuses on relationship graph updates during incremental processing.
+    """
+    notes_dir = temp_notes_base / "notes"
+    notes_dir.mkdir()
+
+    vector_db_path = temp_notes_base / "vector.json"
+    image_store_path = temp_notes_base / "images.json"
+
+    # Set up storage
+    vector_db = LocalVectorDB(filepath=vector_db_path)
+    image_store = LocalImageStore(filepath=image_store_path)
+    orchestrator = IngestionOrchestrator(
+        embedder=fake_embedder,
+        vector_db=vector_db,
+        image_store=image_store,
+    )
+
+    # Create initial notes with relationships
+    (notes_dir / "doc_a.md").write_text("# Document A\n\nThis references [[Document B]].")
+    (notes_dir / "doc_b.md").write_text("# Document B\n\nStandalone document.")
+
+    # Initial ingestion
+    orchestrator.ingest(notes_dir)
+
+    initial_graph = vector_db._relationship_graph
+    initial_relationships = len(initial_graph.relationships) if initial_graph else 0
+
+    # Add a new document that creates more relationships
+    import time
+
+    time.sleep(0.1)
+    (notes_dir / "doc_c.md").write_text("""# Document C
+
+This document creates multiple relationships:
+- Links to [[Document A]]
+- Also links to [[Document B]]
+- And references both [[doc_a]] and [[doc_b]] by filename
+""")
+
+    # Run incremental ingestion
+    orchestrator.ingest(notes_dir)
+
+    # Verify relationships were updated
+    final_graph = vector_db._relationship_graph
+    final_relationships = len(final_graph.relationships) if final_graph else 0
+
+    # Should have more relationships now (exact count depends on relationship extraction logic)
+    assert final_relationships >= initial_relationships, (
+        "Should have at least as many relationships as before"
+    )
+
+    # Verify all notes are still present
+    note_ids = vector_db.get_all_note_ids()
+    assert len(note_ids) == 3, "Should have all three documents"
+
+    notes = vector_db.get_notes_by_ids(list(note_ids))
+    titles = [note.title for note in notes.values()]
+    expected_titles = ["Document A", "Document B", "Document C"]
+    for title in expected_titles:
+        assert title in titles, f"Should have note with title: {title}"
