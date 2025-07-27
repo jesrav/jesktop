@@ -28,7 +28,7 @@ def main(
         vector_db=vector_db,
         image_store=image_store,
     )
-    orchestrator.ingest_folder(folder)
+    orchestrator.ingest(folder)
 
 
 if __name__ == "__main__":

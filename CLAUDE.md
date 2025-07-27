@@ -45,3 +45,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - The linting process includes ruff, mypy, and other code quality tools
 - Address all linting errors before considering implementation complete
 - Pre-commit hooks will also run these checks, but run manually first to catch issues early
+
+### Code style
+- Do not write superfluous comments, instead, write clear and self-explanatory code with meaningful naming
