@@ -27,16 +27,10 @@ class FakeImageStore(ImageStore):
         """Get all image IDs stored in the image store."""
         return list(self._images.keys())
 
-    def add_image(self, image: Image) -> str:
+    def add_image(self, image: Image) -> None:
         """Add an image to the store and return its ID."""
         self._images[image.id] = image
-        return image.id
 
-    def save(self, filepath: str) -> None:
+    def save(self, filepath: str | None = None) -> None:
         """Save the image store to disk."""
         pass
-
-    @classmethod
-    def load(cls, filepath: str) -> "FakeImageStore":
-        """Load an image store from disk."""
-        return cls()

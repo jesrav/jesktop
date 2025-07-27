@@ -1,10 +1,14 @@
 from pathlib import Path
-from typing import Dict, List
+from typing import TYPE_CHECKING, Dict, List
 
 import numpy as np
 
 from jesktop.domain.note import Chunk, Note
 from jesktop.vector_dbs.base import VectorDB
+
+if TYPE_CHECKING:
+    from jesktop.domain.note import EmbeddedChunk
+    from jesktop.domain.relationships import RelationshipGraph
 
 
 class FakeVectorDB(VectorDB):
@@ -16,7 +20,7 @@ class FakeVectorDB(VectorDB):
     def get_closest_chunks(self, input_vector: np.ndarray, closest: int) -> List[Chunk]:
         return [
             Chunk(
-                id=1,
+                id="note1_0",
                 note_id="note1",
                 title="Test Note 1",
                 text="Test chunk 1",
@@ -24,7 +28,7 @@ class FakeVectorDB(VectorDB):
                 end_pos=10,
             ),
             Chunk(
-                id=2,
+                id="note2_0",
                 note_id="note2",
                 title="Test Note 2",
                 text="Test chunk 2",
@@ -39,18 +43,6 @@ class FakeVectorDB(VectorDB):
         except KeyError:
             return None
 
-    def get_related_notes(self, note_id: str, max_depth: int = 2) -> List[Note]:
-        return []
-
-    def get_note_cluster(self, note_id: str) -> List[Note]:
-        return []
-
-    def find_path_between_notes(self, source_id: str, target_id: str) -> List[str]:
-        return []
-
-    def get_relationship_context(self, source_id: str, target_id: str) -> str:
-        return ""
-
     def find_note_by_title(self, title: str) -> Note | None:
         """Find note by title for testing."""
         # Simple implementation for testing
@@ -62,11 +54,35 @@ class FakeVectorDB(VectorDB):
                 return note
         return None
 
-    def save(self, filepath: str) -> None:
-        """Save the vector database to disk."""
+    def get_notes_by_ids(self, note_ids: list[str]) -> dict[str, Note]:
+        """Get multiple notes by their IDs for testing."""
+        return {note_id: self._notes[note_id] for note_id in note_ids if note_id in self._notes}
+
+    def get_all_note_ids(self) -> set[str]:
+        """Get all note IDs in the fake database."""
+        return set(self._notes.keys())
+
+    def update_note(self, note: Note) -> None:
+        """Add or update a note in the fake database."""
+        self._notes[note.id] = note
+
+    def delete_note(self, note_id: str) -> None:
+        """Delete a note from the fake database."""
+        if note_id in self._notes:
+            del self._notes[note_id]
+
+    def delete_chunks_for_note(self, note_id: str) -> None:
+        """Delete chunks for a note (no-op in fake)."""
         pass
 
-    @classmethod
-    def load(cls, filepath: str) -> "FakeVectorDB":
-        """Load a vector database from disk."""
-        return cls({})
+    def add_chunk(self, chunk: "EmbeddedChunk") -> None:
+        """Add a chunk (no-op in fake)."""
+        pass
+
+    def update_relationship_graph(self, relationship_graph: "RelationshipGraph") -> None:
+        """Update relationship graph (no-op in fake)."""
+        pass
+
+    def save(self, filepath: str | None = None) -> None:
+        """Save the database (no-op in fake)."""
+        pass
