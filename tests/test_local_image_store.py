@@ -100,9 +100,10 @@ def test_multiple_images(sample_image: Image, second_image: Image) -> None:
     store.add_image(second_image)
 
     image_ids = store.get_image_ids()
-    assert set(image_ids) == {"test_hash_123", "test_hash_789"}, (
-        "get_image_ids should return both image IDs"
-    )
+    assert set(image_ids) == {
+        "test_hash_123",
+        "test_hash_789",
+    }, "get_image_ids should return both image IDs"
 
     assert store.get_image("test_hash_123").relative_path == "test_image.png", (
         "First image should be retrievable with correct path"
@@ -137,9 +138,10 @@ def test_save_and_load_functionality(sample_image: Image, second_image: Image) -
 
         new_store = LocalImageStore(filepath=filepath)
 
-        assert set(new_store.get_image_ids()) == {"test_hash_123", "test_hash_789"}, (
-            "Should load both image IDs"
-        )
+        assert set(new_store.get_image_ids()) == {
+            "test_hash_123",
+            "test_hash_789",
+        }, "Should load both image IDs"
         assert new_store.get_image("test_hash_123").relative_path == "test_image.png", (
             "Should load first image correctly"
         )

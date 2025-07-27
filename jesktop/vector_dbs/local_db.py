@@ -159,7 +159,7 @@ class LocalVectorDB(VectorDB):
                         visited.add(connected_id)
                         queue.append((connected_id, path + [connected_id]))
 
-        return []  # No path found
+        return []
 
     def get_relationship_context(self, source_id: str, target_id: str) -> str:
         """Get the context text for a relationship between two notes."""
@@ -169,8 +169,10 @@ class LocalVectorDB(VectorDB):
         return ""
 
     def find_note_by_title(self, title: str) -> Note | None:
-        """Find note by title, supporting fuzzy matching."""
-        # Try different matching strategies in order of precision
+        """Find note by title, supporting fuzzy matching.
+
+        We try different matching strategies in order of precision
+        """
         for strategy in [
             self._match_exact_title,
             self._match_case_insensitive_title,
@@ -258,11 +260,8 @@ class LocalVectorDB(VectorDB):
 
     def delete_note(self, note_id: str) -> None:
         """Delete a note and all its associated chunks."""
-        # Remove the note
         if note_id in self._notes:
             del self._notes[note_id]
-
-        # Remove all chunks associated with this note
         self.delete_chunks_for_note(note_id)
 
     def delete_chunks_for_note(self, note_id: str) -> None:

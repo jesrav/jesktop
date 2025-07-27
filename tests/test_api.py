@@ -11,9 +11,10 @@ def login_user(
         "/login", data={"username": username, "password": password}, follow_redirects=True
     )
     # Should either be 200 (followed redirect to home) or 302 (redirect response)
-    assert response.status_code in [200, 302], (
-        f"Unexpected status: {response.status_code}, content: {response.text}"
-    )
+    assert response.status_code in [
+        200,
+        302,
+    ], f"Unexpected status: {response.status_code}, content: {response.text}"
     return client
 
 

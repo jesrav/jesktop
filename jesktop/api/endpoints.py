@@ -1,6 +1,6 @@
-"""Endpoints for the backend"""
-
+from pathlib import Path
 from typing import Generator
+from urllib.parse import unquote
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
@@ -12,7 +12,7 @@ from jesktop.embedders.base import Embedder
 from jesktop.image_store import ImageStore
 from jesktop.llms.base import LLMChat
 from jesktop.llms.schemas import LLMMessage
-from jesktop.promt import get_prompt
+from jesktop.prompt import get_prompt
 from jesktop.vector_dbs.base import VectorDB
 
 
@@ -27,16 +27,13 @@ def stream_response(
     try:
         for answer in answer_generator:
             content = answer.content
-            # Split content into lines and prefix each with data:
             lines = content.split("\n")
             data = "\n".join(f"data: {line}" for line in lines)
             yield f"{data}\n\n"
 
-        # Send done event
         yield "event: done\ndata:\n\n"
     except Exception as e:
         logger.error(f"Error in stream: {str(e)}")
-        # Send error event
         yield f"event: error\ndata: {str(e)}\n\n"
 
 
@@ -58,9 +55,9 @@ def _create_chat_endpoint(embedder: Embedder, vector_db: VectorDB, chatbot: LLMC
             messages = [{"role": "user", "content": message}]
             messages[0]["content"] = get_prompt(
                 input_texts=[messages[0]["content"]],
-                embeder=embedder,
+                embedder=embedder,
                 vector_db=vector_db,
-                closest=settings.rag_closets,
+                closest=settings.rag_closest_chunks,
             )
 
             system_message = [LLMMessage(role="system", content=settings.system_message)]
@@ -98,8 +95,6 @@ def _create_notes_search_endpoint(vector_db: VectorDB):
         try:
             note = vector_db.find_note_by_title(title)
             if note:
-                from pathlib import Path
-
                 note_stem = Path(note.path).stem
                 return {
                     "note_id": note.id,
@@ -131,25 +126,20 @@ def _create_image_endpoint(image_store: ImageStore):
         _: str = Depends(verify_session),
     ):
         try:
-            # URL decode the path before looking up
-            from urllib.parse import unquote
-
             decoded_path = unquote(path)
 
-            # Find image ID using note ID and path
             image_id = image_store.get_image_id_by_path(note_id, decoded_path)
             if not image_id:
                 logger.warning(f"Image not found for note {note_id} and path {decoded_path}")
                 raise HTTPException(status_code=404, detail="Image not found")
 
-            # Get and serve the image
             image = image_store.get_image(image_id)
             try:
                 return Response(
                     content=image.content,
                     media_type=image.mime_type,
                     headers={
-                        "Cache-Control": "public, max-age=31536000",  # Cache for 1 year
+                        "Cache-Control": "public, max-age=31536000",
                         "ETag": f'"{image_id}"',
                     },
                 )
@@ -179,7 +169,6 @@ def get_endpoints_router(
     async def health_check():
         return {"status": "healthy"}
 
-    # Register endpoint handlers
     router.get("/chat")(_create_chat_endpoint(embedder, vector_db, chatbot))
     router.get("/api/notes/search")(_create_notes_search_endpoint(vector_db))
     router.get("/api/images/{note_id}/{path:path}")(_create_image_endpoint(image_store))

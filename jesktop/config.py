@@ -31,7 +31,7 @@ Use proper Markdown formatting:
 
 Keep responses clear and well-organized, and always link to the relevant notes when discussing their content.
 """
-    rag_closets: int = 10
+    rag_closest_chunks: int = 10
     log_level: str = "INFO"  # Can be DEBUG, INFO, WARNING, ERROR, CRITICAL
 
 

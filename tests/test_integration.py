@@ -113,8 +113,6 @@ def ingested_data(
         vector_db=vector_db,
         image_store=image_store,
     )
-
-    # Run ingestion
     orchestrator.ingest(integration_test_data["notes_dir"])
 
     return {
@@ -177,7 +175,6 @@ def test_complete_ingestion_to_serving_pipeline(ingested_data: dict[str, Path]) 
 
     assert "images" in image_data, "Image store should contain images section"
     images = image_data["images"]
-    # Note: Some images might not be found due to path resolution, so check what we actually got
     assert len(images) >= 0, "Should have processed images or handled missing images gracefully"
 
     # If images were processed, verify they have the expected structure

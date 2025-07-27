@@ -24,11 +24,11 @@ def get_context(relevant_notes: List[Chunk]) -> str:
 def get_prompt(
     *,
     input_texts: List[str],
-    embeder: Embedder,
+    embedder: Embedder,
     vector_db: VectorDB,
     closest: int,
 ) -> str:
-    input_vector = embeder.embed("\n".join(input_texts))
+    input_vector = embedder.embed("\n".join(input_texts))
     closest_chunks = vector_db.get_closest_chunks(input_vector, closest=closest)
     context = get_context(relevant_notes=closest_chunks)
     prompt = PROMPT_TEMPLATE.format(question=input_texts[-1], context=context)
