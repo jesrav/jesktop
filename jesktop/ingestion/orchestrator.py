@@ -46,49 +46,64 @@ class IngestionOrchestrator:
         self.image_store = image_store
         self.attachment_folders = attachment_folders or ["Z - Attachements"]
 
-        # Initialize services
         self.text_chunker = TextChunker(max_tokens=max_tokens, overlap=overlap)
         self.content_extractor = ContentExtractor()
         self.graph_builder = RelationshipGraphBuilder()
 
-    def ingest_folder(self, folder: Path) -> None:
-        """Process all markdown files in a folder and save to vector database and image store.
-
-        This method uses a two-pass approach:
-        1. First pass: Process file content, images, extract metadata, and build note mapping
-        2. Second pass: Extract relationships and build graph using already-loaded content
+    def ingest(self, folder: Path) -> None:
+        """Process markdown files incrementally, updating only changed files and rebuilding relationships.
 
         Args:
             folder: Path to folder containing markdown files
         """
-        files = list(folder.rglob("*.md"))
-        files = [f for f in files if not f.name.endswith(".excalidraw.md")]
+        all_files = self._get_all_markdown_files_for_ingestion(folder)
+        modified_files = self._get_modified_files(all_files)
 
-        print(f"Starting ingestion of {len(files)} files...")
+        logger.info(
+            f"Found {len(all_files)} total files, {len(modified_files)} modified since last ingestion"
+        )
 
-        # PASS 1: Content processing, metadata extraction, and mapping building
-        print("Pass 1: Processing content and building note mapping...")
-        notes, chunks, note_mapping = self._first_pass_content_processing(files, folder)
+        current_note_ids = {self._generate_note_id(f, folder) for f in all_files}
 
-        # PASS 2: Relationship extraction and graph building (no file re-reading)
-        print("Pass 2: Extracting relationships and building graph...")
-        relationship_graph = self._second_pass_relationship_building(notes, note_mapping)
+        existing_note_ids = self.vector_db.get_all_note_ids()
+        deleted_note_ids = existing_note_ids - current_note_ids
 
-        # Update vector database with all processed data
-        print("Updating vector database...")
-        self._update_vector_database(notes, chunks, relationship_graph)
+        if deleted_note_ids:
+            logger.info(f"Deleting {len(deleted_note_ids)} removed notes...")
+            for note_id in deleted_note_ids:
+                self.vector_db.delete_note(note_id)
 
-        print(f"Processed {len(notes)} notes into {len(chunks)} chunks")
-        print(f"Found {len(relationship_graph.relationships)} relationships")
-        print(f"Created {len(relationship_graph.note_clusters)} folder clusters")
+        if modified_files:
+            logger.info(f"Processing {len(modified_files)} modified files...")
+
+            notes, chunks, _ = self._process_modified_files(modified_files, folder)
+
+            for note in notes.values():
+                self.vector_db.delete_chunks_for_note(note.id)
+                self.vector_db.update_note(note)
+
+            for chunk in chunks.values():
+                self.vector_db.add_chunk(chunk)
+
+        logger.info("Rebuilding relationship graph...")
+        all_notes = self.vector_db.get_notes_by_ids(list(current_note_ids))
+        path_to_file_mapping = self._get_path_to_file_mapping(all_files, folder)
+        relationship_graph = self._extract_and_build_relationships(all_notes, path_to_file_mapping)
+        self.vector_db.update_relationship_graph(relationship_graph)
+
+        logger.info("Ingestion complete:")
+        logger.info(f"  - Total files: {len(all_files)}")
+        logger.info(f"  - Modified: {len(modified_files)}")
+        logger.info(f"  - Deleted: {len(deleted_note_ids)}")
+        logger.info(f"  - Relationships: {len(relationship_graph.relationships)}")
 
         self.vector_db.save()
         self.image_store.save()
 
-    def _first_pass_content_processing(
+    def _process_modified_files(
         self, files: list[Path], folder: Path
-    ) -> tuple[dict[str, Note], dict[int, EmbeddedChunk], dict[str, str]]:
-        """First pass: Process file content, images, extract metadata, and build note mapping.
+    ) -> tuple[dict[str, Note], dict[str, EmbeddedChunk], dict[str, str]]:
+        """Process file content, images, and metadata for modified files.
 
         Args:
             files: List of markdown files to process
@@ -100,32 +115,26 @@ class IngestionOrchestrator:
         notes = {}
         chunks = {}
         note_mapping = {}
-        chunk_id = 0
 
-        # Create PathResolver for image resolution
         path_resolver = PathResolver(base_path=folder, attachment_folders=self.attachment_folders)
-
-        # First, build the complete note mapping (including assets)
-        note_mapping = self._build_complete_mapping(files, folder)
+        note_mapping = self._get_path_to_file_mapping(files, folder)
 
         for file in files:
             note, note_chunks = self._process_file_content(
                 file=file,
                 folder=folder,
-                chunk_id=chunk_id,
                 path_resolver=path_resolver,
             )
             notes[note.id] = note
             for chunk in note_chunks:
                 chunks[chunk.id] = chunk
-            chunk_id += len(note_chunks)
 
         return notes, chunks, note_mapping
 
-    def _second_pass_relationship_building(
+    def _extract_and_build_relationships(
         self, notes: dict[str, Note], note_mapping: dict[str, str]
     ) -> RelationshipGraph:
-        """Second pass: Extract relationships and build graph using already-loaded content.
+        """Extract relationships from note content and build relationship graph.
 
         Args:
             notes: Dictionary of processed notes with content
@@ -134,69 +143,38 @@ class IngestionOrchestrator:
         Returns:
             RelationshipGraph with all relationships
         """
-        # Extract relationships for each note using already-loaded content
         for note in notes.values():
-            # Extract wikilinks and resolve them to note IDs
             wikilinks = self.content_extractor.extract_wikilinks(note.content)
             resolver = ReferenceResolver(note_mapping)
             note.outbound_links = resolver.resolve_references(wikilinks)
 
-            # Extract embedded content and hash them
             embeds = self.content_extractor.extract_embedded_content(note.content)
             note.embedded_content = [sha256(embed.encode()).hexdigest() for embed in embeds]
 
-        # Build relationship graph
         relationship_graph = self.graph_builder.build_relationships(notes)
-
-        # Update inbound links
         self.graph_builder.update_inbound_links(notes, relationship_graph.relationships)
 
         return relationship_graph
-
-    def _update_vector_database(
-        self,
-        notes: dict[str, Note],
-        chunks: dict[int, EmbeddedChunk],
-        relationship_graph: RelationshipGraph,
-    ) -> None:
-        """Update the vector database with processed data.
-
-        Args:
-            notes: Dictionary of processed notes
-            chunks: Dictionary of processed chunks
-            relationship_graph: Built relationship graph
-        """
-        self.vector_db.clear()  # Clear any existing data
-        for note in notes.values():
-            self.vector_db.add_note(note)
-        for chunk in chunks.values():
-            self.vector_db.add_chunk(chunk)
-        self.vector_db.update_relationship_graph(relationship_graph)
 
     def _process_file_content(
         self,
         *,
         file: Path,
         folder: Path,
-        chunk_id: int,
         path_resolver: PathResolver,
     ) -> tuple[Note, list[EmbeddedChunk]]:
         """Process a single markdown file's content without relationships."""
-        print(f"Processing {file}")
+        logger.debug(f"Processing {file}")
 
-        # Read the file content
         with open(file, "r", encoding="utf-8") as f:
             content = f.read()
 
-        # Extract title from filename or first header
         title = file.stem
         if content.startswith("#"):
             title = content.split("\n")[0].lstrip("#").strip()
 
-        # Generate note ID from path
-        note_id = md5(str(file.relative_to(folder)).encode()).hexdigest()
+        note_id = self._generate_note_id(file, folder)
 
-        # Process images and excalidraw refs
         self.content_extractor.process_images_in_note(
             content=content,
             note_id=note_id,
@@ -214,7 +192,6 @@ class IngestionOrchestrator:
 
         content = self.content_extractor.replace_image_paths(content, note_id)
 
-        # Extract folder path for hierarchical relationships
         relative_path = file.relative_to(folder)
         folder_path = str(relative_path.parent) if relative_path.parent != Path(".") else ""
 
@@ -223,29 +200,24 @@ class IngestionOrchestrator:
             title=title,
             path=str(file),
             content=content,
-            metadata={
-                "created": file.stat().st_ctime,
-                "modified": file.stat().st_mtime,
-            },
-            outbound_links=[],  # Will be populated in second pass
-            embedded_content=[],  # Will be populated in second pass
+            created=file.stat().st_ctime,
+            modified=file.stat().st_mtime,
+            outbound_links=[],
+            embedded_content=[],
             folder_path=folder_path,
         )
 
-        # Split the text into chunks
         chunks = []
         text_chunks = self.text_chunker.chunk_text(content)
         current_pos = 0
 
         for i, chunk_text in enumerate(text_chunks):
-            # Find chunk position in original text
             start_pos = content.find(chunk_text, current_pos)
             end_pos = start_pos + len(chunk_text)
             current_pos = end_pos
 
-            # Create embedded chunk
             chunk = EmbeddedChunk(
-                id=chunk_id + i,
+                id=f"{note_id}_{i}",
                 note_id=note_id,
                 title=title,
                 text=chunk_text,
@@ -257,27 +229,60 @@ class IngestionOrchestrator:
 
         return note, chunks
 
+    def _get_all_markdown_files_for_ingestion(self, folder: Path) -> list[Path]:
+        """Get all markdown files suitable for ingestion.
+
+        Args:
+            folder: Path to folder containing markdown files
+
+        Returns:
+            List of markdown files, excluding excalidraw files
+        """
+        all_files = list(folder.rglob("*.md"))
+        return [f for f in all_files if not f.name.endswith(".excalidraw.md")]
+
+    def _get_modified_files(self, all_files: list[Path]) -> list[Path]:
+        """Filter files for those modified since last ingestion.
+
+        Args:
+            all_files: List of all markdown files to check
+
+        Returns:
+            List of files modified since last ingestion
+        """
+        existing_note_ids = self.vector_db.get_all_note_ids()
+        last_modified_time = 0.0
+        for note_id in existing_note_ids:
+            note = self.vector_db.get_note(note_id)
+            if note and note.modified > last_modified_time:
+                last_modified_time = note.modified
+
+        return [f for f in all_files if f.stat().st_mtime > last_modified_time]
+
     @staticmethod
-    def _build_complete_mapping(files: list[Path], folder: Path) -> dict[str, str]:
-        """Build a complete mapping from note names/stems to IDs, including assets.
+    def _generate_note_id(file: Path, base_folder: Path) -> str:
+        """Generate a unique note ID from file path."""
+        return md5(str(file.relative_to(base_folder)).encode()).hexdigest()
+
+    @staticmethod
+    def _get_path_to_file_mapping(files: list[Path], folder: Path) -> dict[str, str]:
+        """Create mapping from file names/paths to IDs for reference resolution.
 
         Args:
             files: List of markdown files
             folder: Base folder path
 
         Returns:
-            Dictionary mapping names/paths to IDs
+            Dictionary mapping file names/paths to their corresponding IDs
         """
         mapping = {}
 
-        # Map markdown files
         for file in files:
-            note_id = md5(str(file.relative_to(folder)).encode()).hexdigest()
+            note_id = IngestionOrchestrator._generate_note_id(file, folder)
             mapping[file.stem] = note_id
             mapping[file.name] = note_id
             mapping[str(file.relative_to(folder))] = note_id
 
-        # Map image files
         image_extensions = {".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".bmp", ".tiff"}
         for ext in image_extensions:
             for image_file in folder.rglob(f"*{ext}"):
@@ -286,7 +291,6 @@ class IngestionOrchestrator:
                 mapping[image_file.name] = image_id
                 mapping[str(image_file.relative_to(folder))] = image_id
 
-        # Map excalidraw files
         for excalidraw_file in folder.rglob("*.excalidraw"):
             excalidraw_id = f"excalidraw:{excalidraw_file.relative_to(folder)}"
             mapping[excalidraw_file.stem] = excalidraw_id

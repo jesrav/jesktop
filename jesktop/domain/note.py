@@ -8,24 +8,39 @@ from pydantic import BaseModel, BeforeValidator, PlainSerializer
 
 
 class Note(BaseModel):
-    """Represents a full, non-chunked note."""
+    """Represents a full, non-chunked note.
+
+    Attributes:
+        id: Unique identifier (MD5 hash of relative file path)
+        title: Note title extracted from filename or first header
+        path: Absolute file path
+        content: Full markdown content
+        created: File creation timestamp (seconds since epoch)
+        modified: File modification timestamp (seconds since epoch)
+        outbound_links: List of note IDs this note links to
+        inbound_links: List of note IDs that link to this note
+        embedded_content: List of image/drawing hashes referenced
+        tags: List of tags extracted from content/path
+        folder_path: Relative folder path for hierarchical relationships
+    """
 
     id: str
     title: str
     path: str
     content: str
-    metadata: dict
-    outbound_links: list[str] = []  # note_ids this note links to
-    inbound_links: list[str] = []  # note_ids that link to this note
-    embedded_content: list[str] = []  # image/drawing hashes referenced
-    tags: list[str] = []  # extracted from content/path
-    folder_path: str = ""  # for hierarchical relationships
+    created: float
+    modified: float
+    outbound_links: list[str] = []
+    inbound_links: list[str] = []
+    embedded_content: list[str] = []
+    tags: list[str] = []
+    folder_path: str = ""
 
 
 class Chunk(BaseModel):
     """Represents a chunk of text from a note for vector search."""
 
-    id: int
+    id: str  # Changed to string for stable IDs like "note_id_0"
     note_id: str
     title: str
     text: str
@@ -51,5 +66,4 @@ NumPyArray = Annotated[
 class EmbeddedChunk(Chunk):
     vector: NumPyArray
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = {"arbitrary_types_allowed": True}

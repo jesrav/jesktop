@@ -39,16 +39,39 @@ class VectorDB(Protocol):
         """Save the vector database to disk."""
         ...
 
-    def add_note(self, note: Note) -> None:
-        """Add a note to the database."""
-        ...
-
     def add_chunk(self, chunk: EmbeddedChunk) -> None:
         """Add an embedded chunk to the database."""
         ...
 
     def update_relationship_graph(self, relationship_graph: RelationshipGraph) -> None:
         """Update the relationship graph."""
+        ...
+
+    def update_note(self, note: Note) -> None:
+        """Add a new note or update an existing one."""
+        ...
+
+    def delete_note(self, note_id: str) -> None:
+        """Delete a note and all its associated chunks."""
+        ...
+
+    def delete_chunks_for_note(self, note_id: str) -> None:
+        """Delete all chunks associated with a note."""
+        ...
+
+    def get_all_note_ids(self) -> set[str]:
+        """Get all note IDs in the database."""
+        ...
+
+    def get_notes_by_ids(self, note_ids: list[str]) -> dict[str, Note]:
+        """Get multiple notes by their IDs, returning a dictionary mapping ID to Note.
+
+        Args:
+            note_ids: List of note IDs to retrieve
+
+        Returns:
+            Dictionary mapping note_id to Note for all found notes
+        """
         ...
 
     def clear(self) -> None:

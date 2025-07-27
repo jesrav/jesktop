@@ -1,7 +1,7 @@
 import json
 from collections import deque
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Union
 
 import numpy as np
 
@@ -45,7 +45,7 @@ class LocalVectorDB(VectorDB):
     def from_data(
         cls,
         notes: Dict[str, Note] | None = None,
-        embedded_chunks: Dict[int, EmbeddedChunk] | None = None,
+        embedded_chunks: Dict[Union[int, str], EmbeddedChunk] | None = None,
         relationship_graph: RelationshipGraph | None = None,
     ) -> "LocalVectorDB":
         """Create LocalVectorDB from provided data (useful for testing).
@@ -244,10 +244,6 @@ class LocalVectorDB(VectorDB):
         with open(save_path, "w") as f:
             json.dump(data, f)
 
-    def add_note(self, note: Note) -> None:
-        """Add a note to the database."""
-        self._notes[note.id] = note
-
     def add_chunk(self, chunk: EmbeddedChunk) -> None:
         """Add an embedded chunk to the database."""
         self._embedded_chunks[chunk.id] = chunk
@@ -255,6 +251,44 @@ class LocalVectorDB(VectorDB):
     def update_relationship_graph(self, relationship_graph: RelationshipGraph) -> None:
         """Update the relationship graph."""
         self._relationship_graph = relationship_graph
+
+    def update_note(self, note: Note) -> None:
+        """Add a new note or update an existing one."""
+        self._notes[note.id] = note
+
+    def delete_note(self, note_id: str) -> None:
+        """Delete a note and all its associated chunks."""
+        # Remove the note
+        if note_id in self._notes:
+            del self._notes[note_id]
+
+        # Remove all chunks associated with this note
+        self.delete_chunks_for_note(note_id)
+
+    def delete_chunks_for_note(self, note_id: str) -> None:
+        """Delete all chunks associated with a note."""
+        chunks_to_delete = [
+            chunk_id
+            for chunk_id, chunk in self._embedded_chunks.items()
+            if chunk.note_id == note_id
+        ]
+        for chunk_id in chunks_to_delete:
+            del self._embedded_chunks[chunk_id]
+
+    def get_all_note_ids(self) -> set[str]:
+        """Get all note IDs in the database."""
+        return set(self._notes.keys())
+
+    def get_notes_by_ids(self, note_ids: list[str]) -> dict[str, Note]:
+        """Get multiple notes by their IDs, returning a dictionary mapping ID to Note.
+
+        Args:
+            note_ids: List of note IDs to retrieve
+
+        Returns:
+            Dictionary mapping note_id to Note for all found notes
+        """
+        return {note_id: self._notes[note_id] for note_id in note_ids if note_id in self._notes}
 
     def clear(self) -> None:
         """Clear all data from the database."""
